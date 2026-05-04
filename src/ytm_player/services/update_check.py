@@ -15,6 +15,8 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 
+from packaging.version import InvalidVersion, Version
+
 logger = logging.getLogger(__name__)
 
 _PYPI_URL = "https://pypi.org/pypi/ytm-player/json"
@@ -22,41 +24,12 @@ _CHECK_INTERVAL_SECONDS = 24 * 60 * 60  # 24h
 _REQUEST_TIMEOUT = 5.0
 
 
-def _parse_version(v: str) -> tuple[int, ...]:
-    """Parse 'X.Y.Z' (or longer) into a comparable tuple of ints.
-
-    Trailing non-numeric suffixes (e.g. 'rc1', 'dev0') sort BEFORE the
-    plain release — so '1.6.0rc1' < '1.6.0'. This matches PEP 440 for
-    the common cases without pulling in packaging.version.
-
-    Returns an empty tuple on parse failure (treated as oldest).
-    """
-    parts: list[int] = []
-    for chunk in v.strip().split("."):
-        digits = ""
-        for ch in chunk:
-            if ch.isdigit():
-                digits += ch
-            else:
-                break
-        if not digits:
-            return ()
-        parts.append(int(digits))
-        # Stop on the first chunk with a non-numeric suffix — this gives
-        # a pre-release the same prefix but no further chunks, so it
-        # compares as less-than the corresponding release.
-        if len(digits) != len(chunk):
-            break
-    return tuple(parts)
-
-
 def _is_newer(latest: str, current: str) -> bool:
-    """True when *latest* is strictly newer than *current* (by PEP-440-ish parse)."""
-    lp = _parse_version(latest)
-    cp = _parse_version(current)
-    if not lp or not cp:
+    """True when *latest* is strictly newer than *current* under PEP 440."""
+    try:
+        return Version(latest) > Version(current)
+    except InvalidVersion:
         return False
-    return lp > cp
 
 
 def _fetch_latest_from_pypi() -> str | None:

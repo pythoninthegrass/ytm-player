@@ -8,25 +8,8 @@ from unittest.mock import patch
 
 from ytm_player.services.update_check import (
     _is_newer,
-    _parse_version,
     check_for_update,
 )
-
-
-class TestParseVersion:
-    def test_simple(self):
-        assert _parse_version("1.6.0") == (1, 6, 0)
-
-    def test_two_part(self):
-        assert _parse_version("1.6") == (1, 6)
-
-    def test_prerelease_truncated(self):
-        # 1.6.0rc1 parses to (1, 6, 0) and stops at the suffix —
-        # crucially, it must compare LESS than 1.6.0.
-        assert _parse_version("1.6.0rc1") == (1, 6, 0)
-
-    def test_garbage_returns_empty(self):
-        assert _parse_version("garbage") == ()
 
 
 class TestIsNewer:
@@ -44,6 +27,24 @@ class TestIsNewer:
 
     def test_unparseable_returns_false(self):
         assert _is_newer("garbage", "1.6.0") is False
+
+    def test_double_digit_minor(self):
+        # Trivially correct under tuple-int compare too, but this is the
+        # canonical "lex compare gets it wrong" test that motivated the
+        # switch to packaging.version.Version.
+        assert _is_newer("1.10.0", "1.9.0") is True
+        assert _is_newer("1.9.0", "1.10.0") is False
+
+    def test_post_release_newer_than_release(self):
+        # 1.6.0.post1 IS strictly newer than 1.6.0 under PEP 440. The
+        # old hand-rolled parser couldn't see this — `.post1` had no
+        # numeric prefix so the chunk parsed to () and _is_newer
+        # returned False. packaging.version.Version handles it.
+        assert _is_newer("1.6.0.post1", "1.6.0") is True
+
+    def test_pre_release_older_than_release(self):
+        assert _is_newer("1.6.0rc1", "1.6.0") is False
+        assert _is_newer("1.6.0", "1.6.0rc1") is True
 
 
 class TestCheckForUpdate:

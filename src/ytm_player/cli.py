@@ -13,6 +13,7 @@ import os
 os.environ["LC_NUMERIC"] = "C"
 
 import json
+import shlex
 import shutil
 import sqlite3
 import subprocess
@@ -645,6 +646,10 @@ def config() -> None:
             _error(f"No $EDITOR set and xdg-open not found. Open manually: {CONFIG_DIR}")
 
     try:
-        subprocess.run([editor, target], check=True)
-    except (subprocess.CalledProcessError, FileNotFoundError) as exc:
+        # shlex.split so EDITOR values with args ("code -w", "emacs -nw")
+        # don't end up as a single bogus executable name. shlex.split
+        # raises ValueError on unbalanced quotes — route that through
+        # _error so a typo'd EDITOR doesn't crash the CLI.
+        subprocess.run([*shlex.split(editor), target], check=True)
+    except (subprocess.CalledProcessError, FileNotFoundError, ValueError) as exc:
         _error(f"Failed to open editor: {exc}")

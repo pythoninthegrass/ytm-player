@@ -115,6 +115,12 @@ class TrackTable(DataTable):
         self._resize_start_x: int = 0
         self._resize_start_width: int = 0
         self._title_manual_width: bool = False
+        # Set up columns at construction time, not on_mount. Otherwise a
+        # caller that mounts the table and immediately calls load_tracks()
+        # synchronously (e.g. context._build_artist's nested-mount chain)
+        # hits add_row() before on_mount runs, and add_row raises because
+        # there are 0 columns.
+        self._setup_columns()
 
     @property
     def tracks(self) -> list[dict]:
@@ -140,7 +146,6 @@ class TrackTable(DataTable):
     # -- Setup ------------------------------------------------------------
 
     def on_mount(self) -> None:
-        self._setup_columns()
         # Pick up the currently-playing video_id from the app's player so
         # the playing-row highlight survives navigating away and back.
         try:
