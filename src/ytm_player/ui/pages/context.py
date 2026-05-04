@@ -51,8 +51,10 @@ class _ArtistAlbumList(DataTable):
     def __init__(self, **kwargs: Any) -> None:
         super().__init__(cursor_type="row", zebra_stripes=True, **kwargs)
         self._albums: list[dict] = []
-
-    def on_mount(self) -> None:
+        # Same option-C pattern as TrackTable: columns at construction
+        # time so a synchronous load_albums() called from a nested-mount
+        # path (see _build_artist) doesn't hit add_row before on_mount
+        # has fired.
         self.add_column("Album", width=None, key="title")
         self.add_column("Year", width=6, key="year")
 
