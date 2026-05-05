@@ -73,7 +73,7 @@ dev = [
 ]
 
 [project.urls]
-Homepage = "https://ytm-player.com"
+Homepage = "https://github.com/peternaame-boop/ytm-player"
 Repository = "https://github.com/peternaame-boop/ytm-player"
 "Bug Tracker" = "https://github.com/peternaame-boop/ytm-player/issues"
 "AUR Package" = "https://aur.archlinux.org/packages/ytm-player-git"
