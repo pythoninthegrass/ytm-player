@@ -12,6 +12,7 @@ on:
   workflow_run:
     workflows: ["Publish"]
     types: [completed]
+  workflow_dispatch: {}
 
 # This workflow doesn't touch the GitHub API — it pushes to AUR via SSH
 # key. Explicitly declare no GITHUB_TOKEN permissions so the auto-
@@ -21,7 +22,7 @@ permissions: {}
 
 jobs:
   aur-publish:
-    if: ${{ github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push' }}
+    if: ${{ github.event_name == 'workflow_dispatch' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push') }}
     runs-on: ubuntu-latest
     steps:
       - name: Check out repo
