@@ -154,3 +154,85 @@ class TestGatherDiagnosticsV2:
         assert "threading.excepthook" in section
         assert "sys.unraisablehook" in section
         assert "faulthandler" in section
+
+
+class TestCrashStaleness:
+    """A stale crash from an older build must not read as a live bug (#89)."""
+
+    def test_flags_crash_from_older_version(self):
+        from ytm_player.utils.doctor import _crash_staleness_note
+
+        note = _crash_staleness_note("=== Crash ===\nversion: 1.0.0\ntrace", "1.9.4")
+        assert note is not None
+        assert "1.0.0" in note
+        assert "may already be fixed" in note
+
+    def test_no_note_for_current_version(self):
+        from ytm_player.utils.doctor import _crash_staleness_note
+
+        assert _crash_staleness_note("version: 1.9.4\ntrace", "1.9.4") is None
+
+    def test_no_note_for_newer_version(self):
+        from ytm_player.utils.doctor import _crash_staleness_note
+
+        assert _crash_staleness_note("version: 2.0.0\ntrace", "1.9.4") is None
+
+    def test_soft_note_when_version_unrecorded(self):
+        from ytm_player.utils.doctor import _crash_staleness_note
+
+        note = _crash_staleness_note("=== Crash ===\ntrace only, no version line", "1.9.4")
+        assert note is not None
+        assert "no version recorded" in note
+
+    def test_no_note_for_unknown_sentinel(self):
+        from ytm_player.utils.doctor import _crash_staleness_note
+
+        assert _crash_staleness_note("=== Crash ===\nversion: unknown\ntrace", "1.9.4") is None
+
+    def test_no_note_for_invalid_version_string(self):
+        from ytm_player.utils.doctor import _crash_staleness_note
+
+        # An unparseable version must not crash diagnostics or emit a verdict.
+        assert (
+            _crash_staleness_note("=== Crash ===\nversion: not-a-version\ntrace", "1.9.4") is None
+        )
+
+    def test_ignores_version_line_inside_traceback_body(self):
+        from ytm_player.utils.doctor import _crash_staleness_note
+
+        # A version-shaped line buried in the traceback must not be parsed as
+        # the crash version — only the metadata header counts (Codex nit #1).
+        content = (
+            "=== Crash ===\n"
+            "Traceback (most recent call last):\n"
+            "  File 'x.py', line 1, in <module>\n"
+            "version: 0.0.1\n"
+        )
+        note = _crash_staleness_note(content, "1.9.4")
+        assert note is not None
+        assert "no version recorded" in note
+
+    def test_ignores_exception_shaped_first_line_in_old_crash(self):
+        from ytm_player.utils.doctor import _crash_staleness_note
+
+        # Old unstamped crash whose first body line is itself "Word: value"
+        # shaped (an exception line) must not be walked as metadata down to a
+        # later version-shaped line (Codex 2nd-pass finding).
+        content = "=== Crash ===\nValueError: bad config\nversion: 0.0.1\n"
+        note = _crash_staleness_note(content, "1.9.4")
+        assert note is not None
+        assert "no version recorded" in note
+
+    def test_diagnostics_report_flags_stale_crash(self, monkeypatch, tmp_path: Path):
+        from ytm_player.config import paths
+        from ytm_player.utils.doctor import gather_diagnostics
+
+        crash_dir = tmp_path / "crashes"
+        crash_dir.mkdir()
+        (crash_dir / "ytm-crash-20200101-000000-000000.log").write_text(
+            "=== Crash ===\nversion: 0.0.1\nsome traceback", encoding="utf-8"
+        )
+        monkeypatch.setattr(paths, "CRASH_DIR", crash_dir)
+
+        report = gather_diagnostics()
+        assert "may already be fixed" in report

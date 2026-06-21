@@ -6,6 +6,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 
 ---
 
+### [Unreleased]
+
+**Diagnostics**
+
+- **Crash files self-identify, and `ytm doctor` flags stale crashes** — every crash log now records the app version, time, Python, and platform it was written under, and `ytm doctor` warns when the most recent crash predates the installed version (or predates version stamping). A stale, already-fixed crash from an older build no longer reads as a live bug.
+
+---
+
 ### v1.9.4 (2026-06-19)
 
 A broad release: community playlist and context-menu features, a batch of crash fixes across macOS, Windows, and Nix, and Discord Rich Presence working again.

@@ -17,6 +17,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+from packaging.version import InvalidVersion, Version
+
 _REDACT_PATTERNS: tuple[re.Pattern[str], ...] = (
     # Match header-value pairs — consume the rest of the line to catch multi-word tokens
     re.compile(r"(authorization\s*[:=]\s*)(.+)", re.IGNORECASE),
@@ -148,6 +150,59 @@ def _recent_faulthandler(crash_dir: Path) -> str:
     return text[last_idx:]
 
 
+# The metadata keys write_crash_file() stamps at the top of every crash file
+# (logging._crash_metadata_header). Only these count as header lines — a
+# traceback line that happens to be "Word: value" shaped (e.g. "ValueError: x")
+# must not be mistaken for crash metadata.
+_CRASH_META_KEYS = frozenset({"version", "time", "python", "platform"})
+
+
+def _crash_staleness_note(content: str, current_version: str) -> str | None:
+    """Warn when the most recent crash predates the running build.
+
+    Crash files record a ``version:`` line in a metadata header (see
+    ``write_crash_file``). If it names a version older than the one installed,
+    the crash may already be fixed — flag it so a stale log isn't mistaken for
+    a live bug. Crash files written before stamping existed have no version
+    line and get a softer note.
+
+    Only the metadata header — the contiguous known ``key: value`` lines just
+    after the ``=== label ===`` banner — is parsed. Scanning the whole body, or
+    accepting any key-shaped line, would let an exception line (``ValueError:
+    x``) or a ``version:``-shaped traceback line produce a bogus verdict.
+    """
+    lines = content.splitlines()
+    start = 1 if lines and lines[0].startswith("===") else 0
+    crash_version: str | None = None
+    for line in lines[start:]:
+        if not line.strip():
+            break  # blank line ends the metadata header
+        meta = re.match(r"(\w+):\s+(\S+)", line)
+        if meta is None or meta.group(1) not in _CRASH_META_KEYS:
+            break  # not a known header key -> header is over (e.g. a traceback line)
+        if meta.group(1) == "version":
+            crash_version = meta.group(2)
+            break
+    if crash_version is None:
+        return (
+            "⚠ This crash file predates crash-version stamping (no version "
+            "recorded). If it's from an older build it may already be fixed — "
+            "reproduce on the current version before reporting."
+        )
+    if crash_version == "unknown":
+        return None
+    try:
+        if Version(crash_version) < Version(current_version):
+            return (
+                f"⚠ This crash was recorded by ytm-player {crash_version}, "
+                f"older than the installed {current_version} — it may already be "
+                "fixed. Reproduce on the current version before reporting."
+            )
+    except InvalidVersion:
+        return None
+    return None
+
+
 def gather_diagnostics() -> str:
     """Return a multi-section text report describing the install."""
     from ytm_player import __version__
@@ -210,6 +265,9 @@ def gather_diagnostics() -> str:
         path, content = crash
         sections.append(f"From: {path}")
         sections.append(content)
+        note = _crash_staleness_note(content, __version__)
+        if note is not None:
+            sections.append(note)
 
     sections.append("")
     sections.append("=== Active hooks ===")

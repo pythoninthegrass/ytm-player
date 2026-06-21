@@ -74,6 +74,30 @@ _crash_dir: Path | None = None
 _crash_keep: int = 10
 
 
+def _crash_metadata_header(label: str) -> str:
+    """Build the self-identifying header prepended to every crash file.
+
+    Records the app version, time, Python, and platform so a crash file is
+    interpretable on its own and ``ytm doctor`` can tell whether a crash
+    predates the running build — otherwise a stale, already-fixed crash log
+    reads as a live bug (the #89 ANSI-theme crash log did exactly that).
+    """
+    import platform
+
+    try:
+        from ytm_player import __version__
+    except Exception:
+        __version__ = "unknown"
+    return (
+        f"=== {label} ===\n"
+        f"version:   {__version__}\n"
+        f"time:      {datetime.now().isoformat(timespec='seconds')}\n"
+        f"python:    {platform.python_version()}\n"
+        f"platform:  {platform.system()} {platform.release()} ({platform.machine()})\n"
+        "\n"
+    )
+
+
 def write_crash_file(traceback_text: str, *, label: str = "Crash") -> Path | None:
     """Write *traceback_text* to a fresh crash file in the configured crash dir.
 
@@ -107,7 +131,7 @@ def write_crash_file(traceback_text: str, *, label: str = "Crash") -> Path | Non
     try:
         fd = os.open(str(path), flags, 0o600)
         try:
-            os.write(fd, f"=== {label} ===\n{traceback_text}".encode("utf-8"))
+            os.write(fd, (_crash_metadata_header(label) + traceback_text).encode("utf-8"))
         finally:
             os.close(fd)
     except OSError:

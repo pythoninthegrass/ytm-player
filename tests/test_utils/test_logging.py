@@ -211,6 +211,31 @@ class TestWriteCrashFileFallback:
         assert "Test crash" in result.read_text()
         assert "traceback body" in result.read_text()
 
+    def test_crash_file_records_app_version_and_metadata(self, tmp_path: Path, monkeypatch):
+        """Crash files self-identify so a stale log isn't mistaken for a live
+        bug, and `ytm doctor` can compare the recorded version to the install.
+        """
+        import re
+
+        from ytm_player import __version__
+        from ytm_player.config import paths
+        from ytm_player.utils.logging import write_crash_file
+
+        crash_dir = tmp_path / "crashes"
+        monkeypatch.setattr(paths, "CRASH_DIR", crash_dir)
+
+        result = write_crash_file("the traceback", label="Test crash")
+
+        assert result is not None
+        text = result.read_text(encoding="utf-8")
+        # Label stays the first line (doctor + existing tests rely on it).
+        assert text.startswith("=== Test crash ===")
+        assert re.search(rf"^version:\s*{re.escape(__version__)}$", text, re.MULTILINE)
+        assert re.search(r"^time:\s*\S+", text, re.MULTILINE)
+        assert re.search(r"^python:\s*\S+", text, re.MULTILINE)
+        assert re.search(r"^platform:\s*\S+", text, re.MULTILINE)
+        assert "the traceback" in text
+
     @pytest.mark.skipif(
         sys.platform == "win32",
         reason="NTFS ignores POSIX chmod(0o500) bits — can't simulate read-only dir on Windows.",
