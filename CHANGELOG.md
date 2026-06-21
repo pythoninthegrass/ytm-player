@@ -8,6 +8,10 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 
 ### [Unreleased]
 
+**New features**
+
+- **Vim-style pane focus navigation** — keyboard users can now move focus between the Playlists sidebar, main content, and visible lyrics pane with `Ctrl+w h`, `Ctrl+w l`, and `Ctrl+w w`. The Playlists shortcut auto-shows the sidebar if it is hidden. Thanks @860windtree (#107, #108).
+
 **Diagnostics**
 
 - **Crash files self-identify, and `ytm doctor` flags stale crashes** — every crash log now records the app version, time, Python, and platform it was written under, and `ytm doctor` warns when the most recent crash predates the installed version (or predates version stamping). A stale, already-fixed crash from an older build no longer reads as a live bug.
