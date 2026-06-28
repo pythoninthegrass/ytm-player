@@ -194,6 +194,7 @@ class BrowseTabBar(Widget):
     BrowseTabBar .tab-item:focus {
         color: $text;
         background: $primary 30%;
+        border-top: tall $primary;
         border-bottom: tall $accent;
     }
     """
